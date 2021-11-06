@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/utils/Context.sol";
 contract HWMRedemptionToken is Context, ERC1155 {
     address public dons;
     address private team;
-    uint256 public growthRate = 15;
     uint256 public initialPrice = 1000000;
     uint256 public A_BIG_NUMBER = 10e60;
     IERC20 public saleToken;
@@ -37,24 +36,15 @@ contract HWMRedemptionToken is Context, ERC1155 {
     uint256[] public bouncePrices;
     // Price => Number of tokens bounced at that price
     mapping(uint256 => uint256) public bouncesAtPrice;
-    // Token Id => Whether the token is an angel or not
-    // mapping(uint256 => bool) public isAngel;
-    // address public assigner;
 
     bool public bouncing = false;
     mapping(address => uint256) public claimedDividends;
     uint256 public totalDividends;
+    uint256 public totalNumBounces;
 
-    event Bounced(uint256 tokenId, address from, address to, uint256 price);
+    event Bounce(uint256 tokenId, address from, address to);
+    event Mint(address to, uint256[] ids);
 
-    event Here(
-        uint256 a,
-        uint256 b,
-        uint256 c,
-        uint256 x,
-        uint256 y,
-        uint256 z
-    );
 
     /**
      * @dev Grants `DEFAULT_ADMIN_ROLE`, `MINTER_ROLE`, and `PAUSER_ROLE` to the account that
@@ -68,6 +58,12 @@ contract HWMRedemptionToken is Context, ERC1155 {
         saleToken = _saleToken;
         dons = _msgSender();
         team = _team;
+    }
+    
+    function _elementToArray(uint256 element) private pure returns (uint256[] memory) {
+        uint256[] memory array = new uint256[](1);
+        array[0] = element;
+        return array;
     }
 
     function changeDons(address newDons) external {
@@ -88,6 +84,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
     ) external virtual {
         require(_msgSender() == dons, "Only dons can mint tokens");
         _mint(to, id, amount, data);
+        emit Mint(to, _elementToArray(id));
     }
 
     function mintBatch(
@@ -98,6 +95,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
     ) external virtual {
         require(_msgSender() == dons, "Only dons can mint tokens");
         _mintBatch(to, ids, amounts, data);
+        emit Mint(to, ids);
     }
 
     function supportsInterface(bytes4 interfaceId)
@@ -141,7 +139,8 @@ contract HWMRedemptionToken is Context, ERC1155 {
                 ownerOf[id] = to;
                 if (id > 1500) {
                     require(bouncing, "Can only bounce gaseous tokens");
-                    emit Bounced(id, from, to, lastBouncePrice[id]);
+                    totalNumBounces++;
+                    emit Bounce(id, from, to);
                     lastBounceTime[id] = block.timestamp;
                 }
             }
@@ -172,6 +171,12 @@ contract HWMRedemptionToken is Context, ERC1155 {
             // Give owner the price they paid plus half of the 30% premium
             // Give the dons 50% of the premium
             // Give the past owners 20% of the premium
+            uint256 growthRate = 15;
+            if(numBounces[id] > 20){
+                growthRate = 11;
+            } else if (numBounces[id] > 15){
+                growthRate = 13;
+            }
             uint256 price = (lastBouncePrice[id] * growthRate) / 10;
             uint256 lastPrice = lastBouncePrice[id];
             lastBouncePrice[id] = price;
