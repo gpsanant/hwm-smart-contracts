@@ -13,6 +13,8 @@ contract HWMRedemptionToken is Context, ERC1155 {
     uint256 public A_BIG_NUMBER = 10e60;
     IERC20 public saleToken;
 
+    string private _uri;
+    string public contractURI;
     // Token Id => Time it was first bounced
     mapping(uint256 => uint256) public timeOfFirstBounce;
     // Token Id => Current Owner
@@ -45,22 +47,54 @@ contract HWMRedemptionToken is Context, ERC1155 {
     event Bounce(uint256 tokenId, address from, address to);
     event Mint(address to, uint256[] ids);
 
-
     /**
      * @dev Grants `DEFAULT_ADMIN_ROLE`, `MINTER_ROLE`, and `PAUSER_ROLE` to the account that
      * deploys the contract.
      */
     constructor(
         string memory uri,
+        string memory _contractUri,
         IERC20 _saleToken,
         address _team
     ) ERC1155(uri) {
+        _uri = uri;
+        contractURI = _contractUri;
         saleToken = _saleToken;
         dons = _msgSender();
         team = _team;
     }
-    
-    function _elementToArray(uint256 element) private pure returns (uint256[] memory) {
+
+    function uint2str(uint _i) internal pure returns (string memory _uintAsString) {
+        if (_i == 0) {
+            return "0";
+        }
+        uint j = _i;
+        uint len;
+        while (j != 0) {
+            len++;
+            j /= 10;
+        }
+        bytes memory bstr = new bytes(len);
+        uint k = len;
+        while (_i != 0) {
+            k = k-1;
+            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+            bytes1 b1 = bytes1(temp);
+            bstr[k] = b1;
+            _i /= 10;
+        }
+        return string(bstr);
+    }
+
+    function uri(uint256 _tokenId) public view override returns (string memory) {
+        return string(abi.encodePacked(_uri, uint2str(_tokenId)));
+    }
+
+    function _elementToArray(uint256 element)
+        private
+        pure
+        returns (uint256[] memory)
+    {
         uint256[] memory array = new uint256[](1);
         array[0] = element;
         return array;
@@ -159,12 +193,9 @@ contract HWMRedemptionToken is Context, ERC1155 {
             // Transfer owner their past dividends so their new shares only count going forward
             if (ownerTimeShares[owner][id] > 0) {
                 uint256 ownerPastDividendsOwed = (ownerTimeShares[owner][id] *
-                        (pastHolderDividends[id] -
-                            pastHolderLastDividends[id][owner])) / A_BIG_NUMBER;
-                saleToken.transfer(
-                    owner,
-                    ownerPastDividendsOwed
-                );
+                    (pastHolderDividends[id] -
+                        pastHolderLastDividends[id][owner])) / A_BIG_NUMBER;
+                saleToken.transfer(owner, ownerPastDividendsOwed);
                 claimedDividends[owner] += ownerPastDividendsOwed;
                 pastHolderLastDividends[id][owner] = pastHolderDividends[id];
             }
@@ -172,9 +203,9 @@ contract HWMRedemptionToken is Context, ERC1155 {
             // Give the dons 50% of the premium
             // Give the past owners 20% of the premium
             uint256 growthRate = 15;
-            if(numBounces[id] > 20){
+            if (numBounces[id] > 20) {
                 growthRate = 11;
-            } else if (numBounces[id] > 15){
+            } else if (numBounces[id] > 15) {
                 growthRate = 13;
             }
             uint256 price = (lastBouncePrice[id] * growthRate) / 10;

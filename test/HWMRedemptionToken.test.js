@@ -41,7 +41,8 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
       { from: owner }
     );
     redemptionToken = await HWMRedemptionToken.new(
-      "https://hwm.gg/redemptionTokens/",
+      "https://hwm.gg/api/redemption/tokens/metadata/",
+      "https://hwm.gg/api/redemption/metadata",
       testToken.address,
       team,
       {
@@ -877,6 +878,8 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
     // expect(
     //   (await redemptionToken.bouncesAtPrice(secondBouncePrice)).toString()
     // ).to.equal("1");
+
+    console.log(await redemptionToken.uri("1501"))
 })
 
 
