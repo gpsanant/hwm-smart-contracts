@@ -11,6 +11,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
     address private team;
     uint256 public constant initialPrice = 1000000;
     uint256 public constant A_BIG_NUMBER = 10e50;
+    uint256 public immutable numUnbouncableTokens;
     IERC20 public immutable saleToken;
 
     string private _uri;
@@ -55,13 +56,15 @@ contract HWMRedemptionToken is Context, ERC1155 {
         string memory uri,
         string memory _contractUri,
         IERC20 _saleToken,
-        address _team
+        address _team,
+        uint256 _numUnbouncableTokens
     ) ERC1155(uri) {
         _uri = uri;
         contractURI = _contractUri;
         saleToken = _saleToken;
         dons = _msgSender();
         team = _team;
+        numUnbouncableTokens = _numUnbouncableTokens;
     }
     
     modifier onlyDons() {
@@ -174,7 +177,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
                     "Token has already been minted"
                 );
                 require(amounts[i] == 1, "Can only mint one token per id");
-                if (id > 1500) {
+                if (id > numUnbouncableTokens) {
                     lastBounceTime[id] = block.timestamp;
                 }
                 ownerOf[id] = to;
@@ -183,7 +186,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
             for (uint256 i = 0; i < ids.length; i++) {
                 uint256 id = ids[i];
                 ownerOf[id] = to;
-                if (id > 1500) {
+                if (id > numUnbouncableTokens) {
                     require(bouncing, "Can only bounce gaseous tokens");
                     totalNumBounces++;
                     emit Bounce(id, from, to);
@@ -197,7 +200,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
     }
 
     function bounce(uint256 id, address newOwner) external {
-        require(id > 1500, "Token is not gaseuous");
+        require(id > numUnbouncableTokens, "Token is not gaseuous");
         address owner = ownerOf[id];
         require(owner != address(0), "Token has not been minted");
         uint8 numBouncesForToken = numBounces[id];
@@ -322,7 +325,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
                 A_BIG_NUMBER;
             pastHolderLastDividends[id][owner] = pastHolderDividends[id];
         }
-        saleToken.transferFrom(address(this), owner, dividendsOwed);
+        saleToken.transfer(owner, dividendsOwed);
         claimedDividends[owner] += dividendsOwed;
     }
 
@@ -341,7 +344,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
                 A_BIG_NUMBER;
             pastHolderLastDividends[id][owner] = pastHolderDividends[id];
         }
-        saleToken.transferFrom(address(this), owner, dividendsOwed);
+        saleToken.transfer(owner, dividendsOwed);
         claimedDividends[owner] += dividendsOwed;
     }
 }

@@ -22,7 +22,7 @@ interface Holy {
         uint256 breedingCooldown;
         uint256 numChildren;
         uint104 shares;
-        uint256 lastDividendPoints;
         uint256 matingWith;
+        uint256[] devilLineage;
     }
 }

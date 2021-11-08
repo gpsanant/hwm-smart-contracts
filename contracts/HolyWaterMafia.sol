@@ -8,26 +8,26 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/PullPayment.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
 import "./IHWMGenetics.sol";
+import "./IHWMBreedingFeeSplitter.sol";
 import "./HWMGenetics.sol";
+import "./HWMRedemptionToken.sol";
+import "./HWMAssigner.sol";
 import "./Holy.sol";
 
 contract HolyWaterMafia is
     ERC1155,
     ReentrancyGuard,
-    PullPayment,
     Holy,
-    VRFConsumerBase
+    VRFConsumerBase,
+    Ownable
 {
     using Address for address payable;
     using ECDSA for bytes32;
     uint256 public angelTokenId = 0;
     uint256 public devilTokenId = 10000000000;
-    uint256 public numGen0Devils = 0;
-    uint256 public MAX_GEN0_DEVILS = 6666;
-    uint256 public numGen0Angels = 0;
-    uint256 public MAX_GEN0_ANGELS = 3333;
     IHWMGenetics public GENOMICS;
     uint256 public BREEDING_FEE = 25000000000000000;
     uint256[] private BREEDING_COOLDOWNS = [
@@ -44,25 +44,24 @@ contract HolyWaterMafia is
         604800,
         1209600
     ];
-    uint256 public HELLS_SHARE = 500;
     uint256 private breedingDealine;
-    uint256 public owedDividends = 0;
-    uint256 public totalDividendPoints = 0;
     uint256 public totalShares = 0;
     mapping(address => bool) public CAN_SET_GENOME;
     address public DONS;
     address public MULTISIG;
     address public TREASURY;
     uint256 public POINT_MULTIPLIER = 10e40;
-    IERC20 public TOKEN;
+    IERC20 public BREEDING_TOKEN;
+    HWMRedemptionToken public redemptionToken;
+    HWMAssigner public assginer;
+    IHWMBreedingFeeSplitter public feeSplitter;
+    address public burn = 0x6c6179724C61626F7261746F7269657346747721;
 
     mapping(bytes32 => bool) public alreadyMated;
     mapping(uint256 => Devil) public devils;
     mapping(uint256 => Angel) public angels;
     mapping(bytes32 => uint256) public requestIdToRandomness;
 
-    mapping(address => bool) public hasPurchasedDevils;
-    mapping(address => bool) public hasPurchasedAngels;
     mapping(address => bytes32[]) public devilMintRequestIds;
     mapping(address => bytes32[]) public angelMintRequestIds;
     mapping(bytes32 => bytes32) public matingHashToRequestId;
@@ -71,17 +70,9 @@ contract HolyWaterMafia is
     uint256 internal fee;
     event BreedingApproval(uint256 angelId, uint256 devilId);
     event Stuff(bytes32 requestId, uint256 i);
-    event DevilPurchase(
-        address owner,
-        bytes32 requestId
-    );
-    event AngelPurchase(
-        address owner,
-        bytes32 requestId
-    );
     event Pregnancy(
         address owner,
-        uint256 devilId, 
+        uint256 devilId,
         uint256 angelId,
         bytes32 requestId
     );
@@ -92,8 +83,7 @@ contract HolyWaterMafia is
         uint8 generation,
         uint256 angelParent,
         uint256 devilParent,
-        uint104 shares,
-        uint256 lastDividendPoints
+        uint104 shares
     );
     event AngelBirth(
         address owner,
@@ -109,7 +99,10 @@ contract HolyWaterMafia is
         address _vrfCoordinator,
         address dons,
         address multisig,
-        IERC20 token
+        IERC20 token,
+        HWMRedemptionToken _redemptionToken,
+        HWMAssigner _assigner,
+        IHWMBreedingFeeSplitter _feeSplitter
     )
         ERC1155("https://game.example/api/item/{id}.json")
         VRFConsumerBase(
@@ -121,9 +114,12 @@ contract HolyWaterMafia is
         DONS = dons;
         MULTISIG = multisig;
         GENOMICS = new HWMGenetics();
-        TOKEN = token;
+        BREEDING_TOKEN = token;
         keyHash = 0x6e75b569a01ef56d18cab6a8e71e6600d6ce853834d4a5748b720d06f878b3a4;
         fee = 0.0001 * 10**18;
+        redemptionToken = _redemptionToken;
+        assginer = _assigner;
+        feeSplitter = _feeSplitter;
     }
 
     function fulfillRandomness(bytes32 requestId, uint256 randomness)
@@ -133,34 +129,38 @@ contract HolyWaterMafia is
         requestIdToRandomness[requestId] = randomness;
     }
 
-    function purchaseGen0Devil(uint8 amount) external payable nonReentrant {
-        require(hasPurchasedDevils[msg.sender] != true, "User already purchased devils");
+    function mintTokens(address owner, uint256[] memory ids) external nonReentrant {
+        require(owner == msg.sender || redemptionToken.isApprovedForAll(owner, msg.sender), "Only the owner and approved can burn the redemption tokens");
         require(
-            LINK.balanceOf(address(this)) >= fee,
+            LINK.balanceOf(address(this)) >= ids.length*fee,
             "Not enough LINK - fill contract with faucet"
         );
-        require(
-            numGen0Devils < MAX_GEN0_DEVILS,
-            "All Gen0 Devils have been minted"
-        );
-        require(msg.value == amount*50000000000000000, "Minting price is incorrect");
-        require(amount < 4 && amount > 0, "Cannot purchase more than 3 devils");
-        hasPurchasedDevils[msg.sender] = true;
-        _asyncTransfer(DONS, amount*msg.value);
-        for(uint i = 0; i < amount; i++){
+        uint256[] memory amounts = new uint256[](ids.length);
+        for (uint256 i = 0; i < ids.length; i++) {
             bytes32 requestId = requestRandomness(keyHash, fee);
-            devilMintRequestIds[msg.sender].push(requestId);
-            numGen0Devils++;
-            emit DevilPurchase(msg.sender, requestId);
-        }       
+            // if angel, add request id to angelMintRequestIds else add to devilMintRequestIds
+            bool isAngel = assginer.isAngel(ids[i]);
+            if(isAngel){
+                angelMintRequestIds[msg.sender].push(requestId);
+            } else {
+                devilMintRequestIds[msg.sender].push(requestId);
+            }
+            amounts[i] = 1;
+        }
+        // burn token after minting
+        redemptionToken.safeBatchTransferFrom(owner, burn, ids, amounts, "0x");
     }
 
-    function claimGen0Devil(address owner) external payable nonReentrant {
-        for (uint i = 0; i < devilMintRequestIds[owner].length; i++) {
+    function claimTokens(address owner) external nonReentrant {
+        require(owner == msg.sender || isApprovedForAll(owner, msg.sender), "Only the owner and approved can claim tokens");
+        // mint devils
+        for (uint256 i = 0; i < devilMintRequestIds[owner].length; i++) {
+            // get randomness
             uint256 randomness = requestIdToRandomness[
                 devilMintRequestIds[owner][i]
             ];
             require(randomness != uint256(0), "Randomness must be set");
+            // get genome from genomics module
             bytes32 devilGenome = GENOMICS.getGen0DevilGenome(
                 devilTokenId,
                 randomness
@@ -168,31 +168,14 @@ contract HolyWaterMafia is
             _mintDevil(owner, devilGenome, 0, 0, 0);
         }
         delete devilMintRequestIds[owner];
-    }
-
-    function purchaseGen0Angel() external payable nonReentrant {
-        require(
-            LINK.balanceOf(address(this)) >= fee,
-            "Not enough LINK - fill contract with faucet"
-        );
-        require(
-            numGen0Angels < MAX_GEN0_ANGELS,
-            "All Gen0 Angels have been minted"
-        );
-        require(msg.value == 100000000000000000, "Minting price is incorrect");
-        _asyncTransfer(DONS, msg.value);
-        bytes32 requestId = requestRandomness(keyHash, fee);
-        angelMintRequestIds[msg.sender].push(requestId);
-        numGen0Angels++;
-        emit AngelPurchase(msg.sender, requestId);  
-    }
-
-    function claimGen0Angel(address owner) external payable nonReentrant {
-        for (uint i = 0; i < angelMintRequestIds[owner].length; i++) {
+        // mint angels
+        for (uint256 i = 0; i < angelMintRequestIds[owner].length; i++) {
+            // get randomness
             uint256 randomness = requestIdToRandomness[
                 angelMintRequestIds[owner][i]
             ];
             require(randomness != uint256(0), "Randomness must be set");
+            // get genome from genomics module
             bytes32 angelGenome = GENOMICS.getGen0AngelGenome(
                 angelTokenId,
                 randomness
@@ -208,16 +191,18 @@ contract HolyWaterMafia is
         uint256 angelId
     ) external {
         require(
-            balanceOf(msg.sender, angelId) == 1 ||
-                (balanceOf(owner, angelId) == 1 &&
-                    isApprovedForAll(owner, msg.sender)),
+            balanceOf(owner, devilId) == 1 &&
+                    (msg.sender == owner ||
+                        isApprovedForAll(owner, msg.sender)),
             "User is not authorized to modify angel"
         );
         require(
             block.timestamp > angels[angelId].setApprovedToBreedCooldown,
             "Devil must be given ample time to breed"
         );
-        angels[angelId].setApprovedToBreedCooldown = block.timestamp + 86400000;
+        // allow devil 1 day to breed with angel
+        angels[angelId].setApprovedToBreedCooldown = block.timestamp + 86400;
+        // set devil to breed
         angels[angelId].approvedDevilIdToBreed = devilId;
         emit BreedingApproval(angelId, devilId);
     }
@@ -233,34 +218,21 @@ contract HolyWaterMafia is
             "Devil id is invalid"
         );
         require(
-            balanceOf(msg.sender, devilId) == 1 ||
-                (balanceOf(owner, devilId) == 1 &&
-                    isApprovedForAll(owner, msg.sender)),
-            "User is not authorized to breed devil"
-        );
+                balanceOf(owner, devilId) == 1 &&
+                    (msg.sender == owner ||
+                        isApprovedForAll(owner, msg.sender)),
+                "User is not authorized to breed devil"
+            );
         Devil storage devil = devils[devilId];
         Angel storage angel = angels[angelId];
-        TOKEN.transferFrom(owner, DONS, BREEDING_FEE / 3);
-        uint256 hellsShareOfFee = (BREEDING_FEE * 2 * HELLS_SHARE) / 3000;
-        TOKEN.transferFrom(owner, address(this), hellsShareOfFee);
-        if (TREASURY != address(0)) {
-            TOKEN.transferFrom(
+        BREEDING_TOKEN.transferFrom(owner, DONS, BREEDING_FEE / 3);
+        uint256 feeAfterDons =  BREEDING_FEE * 2 / 3;
+        BREEDING_TOKEN.transferFrom(
                 owner,
-                TREASURY,
-                BREEDING_FEE - hellsShareOfFee - BREEDING_FEE / 3
+                address(feeSplitter),
+                BREEDING_FEE * 2 / 3
             );
-        } else {
-            TOKEN.transferFrom(
-                owner,
-                address(this),
-                BREEDING_FEE - hellsShareOfFee - BREEDING_FEE / 3
-            );
-        }
-        totalDividendPoints +=
-            (POINT_MULTIPLIER * BREEDING_FEE * 2 * HELLS_SHARE) /
-            3000 /
-            totalShares;
-        owedDividends += (BREEDING_FEE * 2 * HELLS_SHARE) / 3000;
+        feeSplitter.splitBreedingFee(feeAfterDons, devilId, angelId);
         bytes32 matingHash = keccak256(abi.encodePacked(devilId, angelId));
         require(
             angel.approvedDevilIdToBreed == devilId,
@@ -283,10 +255,7 @@ contract HolyWaterMafia is
             block.timestamp > angel.breedingCooldown,
             "You must wait until the cooldown time is reached to breed the angel"
         );
-        require(
-            devil.matingWith == 0,
-            "You cannot mate a pregnant angel"
-        );
+        require(devil.matingWith == 0, "You cannot mate a pregnant angel");
         alreadyMated[matingHash] = true;
         bytes32 requestId = requestRandomness(keyHash, fee);
         matingHashToRequestId[matingHash] = requestId;
@@ -306,29 +275,12 @@ contract HolyWaterMafia is
         devils[devilId].breedingCooldown = block.timestamp + newDevilCooldown;
         devils[devilId].matingWith = angelId;
         emit Pregnancy(owner, devilId, angelId, requestId);
-        // (
-        //     bool isAngel,
-        //     Angel memory newAngelParent,
-        //     Devil memory newDevilParent,
-        //     bytes32 newGenome,
-        //     uint8 generation
-        // ) = GENOMICS.getChild(devil, angel, uint256(blockhash(0)));
-        // angels[angelId] = newAngelParent;
-        // devils[devilId] = newDevilParent;
-        // if (isAngel) {
-        //     _mintAngel(owner, newGenome, generation, angelId, devilId);
-        // } else {
-        //     _mintDevil(owner, newGenome, generation, angelId, devilId);
-        // }
     }
 
     function giveBirth(address owner, uint256 devilId) external {
         Devil storage devil = devils[devilId];
-        uint angelId = devil.matingWith;
-        require(
-            angelId != 0,
-            "You cannot mate a pregnant angel"
-        );
+        uint256 angelId = devil.matingWith;
+        require(angelId != 0, "You cannot mate a pregnant angel");
         devil.matingWith = 0;
         Angel storage angel = angels[angelId];
         require(
@@ -365,6 +317,10 @@ contract HolyWaterMafia is
         devilTokenId++;
         uint104 shares = uint104(2**(66 - generation));
         totalShares += shares;
+        uint256[] storage devilLineage = devils[devilParentId].devilLineage;
+        if(devilParentId != 0){
+            devilLineage.push(devilParentId);
+        }
         devils[devilTokenId] = Devil(
             genome,
             generation,
@@ -373,8 +329,8 @@ contract HolyWaterMafia is
             0,
             0,
             shares,
-            totalDividendPoints,
-            0
+            0,
+            devilLineage
         );
         _mint(owner, devilTokenId, 1, "");
         emit DevilBirth(
@@ -384,8 +340,7 @@ contract HolyWaterMafia is
             generation,
             angelParentId,
             devilParentId,
-            shares,
-            totalDividendPoints
+            shares
         );
     }
 
@@ -418,6 +373,10 @@ contract HolyWaterMafia is
         );
     }
 
+    function getShares(uint256 devilId) public view returns (uint256) {
+        return devils[devilId].shares;
+    }
+
     function getDevil(uint256 devilId) public view returns (Devil memory) {
         return devils[devilId];
     }
@@ -426,79 +385,26 @@ contract HolyWaterMafia is
         return angels[angelId];
     }
 
-    function dividendBalance(uint256 devilId) public view returns (uint256) {
-        Devil storage devil = devils[devilId];
-        return
-            (devil.shares * (totalDividendPoints - devil.lastDividendPoints)) /
-            POINT_MULTIPLIER;
-    }
-
-    function withdrawDividends(address payable owner, uint256 devilId)
-        public
-        nonReentrant
-    {
-        require(
-            balanceOf(owner, devilId) == 1,
-            "User is not authorized to withdraw for devil"
-        );
-        uint256 dividends = dividendBalance(devilId);
-        devils[devilId].lastDividendPoints = totalDividendPoints;
-        owedDividends -= dividends;
-        TOKEN.transferFrom(address(this), owner, dividends);
-    }
-
-    modifier onlyTreasury() {
-        require(
-            msg.sender == TREASURY,
-            "This function is restricted to the contract's tresury"
-        );
-        _;
-    }
-
-    function setTreasury(address treasury) external onlyTreasury {
-        TREASURY = treasury;
-    }
-
-    function setTreasuryFromMultisig(address treasury) external {
-        require(
-            msg.sender == MULTISIG,
-            "Only the multisig can change the treasury"
-        );
-        TREASURY = treasury;
-    }
-
-    function setMultisig(address multisig) external {
-        require(
-            msg.sender == MULTISIG,
-            "Only the multisig can change the multisig"
-        );
-        MULTISIG = multisig;
-    }
-
     function setDons(address dons) external {
         require(msg.sender == DONS, "Only the dons can change the dons");
         DONS = dons;
     }
 
-    function setBreedingFee(uint256 breedingFee) external onlyTreasury {
+    function setBreedingFee(uint256 breedingFee) external onlyOwner {
         BREEDING_FEE = breedingFee;
     }
 
-    function setHellsShare(uint256 hellsShare) external onlyTreasury {
-        HELLS_SHARE = hellsShare;
-    }
-
-    function setGenomics(IHWMGenetics _genomics) external onlyTreasury {
+    function setGenomics(IHWMGenetics _genomics) external onlyOwner {
         GENOMICS = _genomics;
     }
 
-    function setToken(IERC20 _token) external onlyTreasury {
-        TOKEN = _token;
+    function setBreedingToken(IERC20 _token) external onlyOwner {
+        BREEDING_TOKEN = _token;
     }
 
     function setGenomeSetterCapability(address genomeSetter, bool canSetGenomes)
         external
-        onlyTreasury
+        onlyOwner
     {
         CAN_SET_GENOME[genomeSetter] = canSetGenomes;
     }
