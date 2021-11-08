@@ -9,9 +9,9 @@ import "@openzeppelin/contracts/utils/Context.sol";
 contract HWMRedemptionToken is Context, ERC1155 {
     address public dons;
     address private team;
-    uint256 public initialPrice = 1000000;
-    uint256 public A_BIG_NUMBER = 10e60;
-    IERC20 public saleToken;
+    uint256 public constant initialPrice = 1000000;
+    uint256 public constant A_BIG_NUMBER = 10e50;
+    IERC20 public immutable saleToken;
 
     string private _uri;
     string public contractURI;
@@ -63,6 +63,14 @@ contract HWMRedemptionToken is Context, ERC1155 {
         dons = _msgSender();
         team = _team;
     }
+    
+    modifier onlyDons() {
+        require(
+            msg.sender == dons,
+            "This function is restricted to the dons"
+        );
+        _;
+    }
 
     function uint2str(uint _i) internal pure returns (string memory _uintAsString) {
         if (_i == 0) {
@@ -90,6 +98,14 @@ contract HWMRedemptionToken is Context, ERC1155 {
         return string(abi.encodePacked(_uri, uint2str(_tokenId)));
     }
 
+    function setURI(string memory _newURI) external onlyDons {
+        _uri = _newURI;
+    }
+
+    function setContractURI(string memory _newContractURI) external onlyDons {
+        contractURI = _newContractURI;
+    }
+
     function _elementToArray(uint256 element)
         private
         pure
@@ -100,13 +116,11 @@ contract HWMRedemptionToken is Context, ERC1155 {
         return array;
     }
 
-    function changeDons(address newDons) external {
-        require(_msgSender() == dons, "Only dons can change dons");
+    function changeDons(address newDons) external onlyDons {
         dons = newDons;
     }
 
-    function changeTeam(address newTeam) external {
-        require(_msgSender() == dons, "Only dons can change dons");
+    function changeTeam(address newTeam) external onlyDons {
         team = newTeam;
     }
 
@@ -115,8 +129,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
         uint256 id,
         uint256 amount,
         bytes memory data
-    ) external virtual {
-        require(_msgSender() == dons, "Only dons can mint tokens");
+    ) external virtual onlyDons {
         _mint(to, id, amount, data);
         emit Mint(to, _elementToArray(id));
     }
@@ -126,8 +139,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
         uint256[] memory ids,
         uint256[] memory amounts,
         bytes memory data
-    ) external virtual {
-        require(_msgSender() == dons, "Only dons can mint tokens");
+    ) external virtual onlyDons {
         _mintBatch(to, ids, amounts, data);
         emit Mint(to, ids);
     }

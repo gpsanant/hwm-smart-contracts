@@ -1,5 +1,5 @@
 // PROPERTY OF BIG BUDDHA LLC. NOT FOR USE OUTSIDE OF THE HOLY WATER MAFIA NFT PROJECT
-const util = require('util')
+const util = require("util");
 
 const {
   BN,
@@ -744,9 +744,6 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
   //   await time.increaseTo((await time.latest()).add(holdTime3));
   // });
 
-
-
-
   it("Can bounce gaseous token multiple times", async function () {
     var mintTx = await redemptionToken.mint(team, "1501", 1, "0x", {
       from: dons,
@@ -759,8 +756,12 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
     var firstRepurchaserTokenBalance = await testToken.balanceOf(repurchaser);
     var firstPurchaserTokenBalance = await testToken.balanceOf(purchaser);
     var firstTeamTokenBalance = await testToken.balanceOf(team);
-    var firstPurchaserDividendsTokenBalance = await redemptionToken.dividends(purchaser);
-    var firstRepurchaserDividendsTokenBalance = await redemptionToken.dividends(repurchaser);
+    var firstPurchaserDividendsTokenBalance = await redemptionToken.dividends(
+      purchaser
+    );
+    var firstRepurchaserDividendsTokenBalance = await redemptionToken.dividends(
+      repurchaser
+    );
     var firstContractTokenBalance = await testToken.balanceOf(
       redemptionToken.address
     );
@@ -772,8 +773,11 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
     var secondRepurchaserTokenBalance = await testToken.balanceOf(repurchaser);
     var secondPurchaserTokenBalance = await testToken.balanceOf(purchaser);
     var secondTeamTokenBalance = await testToken.balanceOf(team);
-    var secondPurchaserDividendsTokenBalance = await redemptionToken.dividends(purchaser);
-    var secondRepurchaserDividendsTokenBalance = await redemptionToken.dividends(repurchaser);
+    var secondPurchaserDividendsTokenBalance = await redemptionToken.dividends(
+      purchaser
+    );
+    var secondRepurchaserDividendsTokenBalance =
+      await redemptionToken.dividends(repurchaser);
     var secondContractTokenBalance = await testToken.balanceOf(
       redemptionToken.address
     );
@@ -787,8 +791,12 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
     var thirdRepurchaserTokenBalance = await testToken.balanceOf(repurchaser);
     var thirdPurchaserTokenBalance = await testToken.balanceOf(purchaser);
     var thirdTeamTokenBalance = await testToken.balanceOf(team);
-    var thirdPurchaserDividendsTokenBalance = await redemptionToken.dividends(purchaser);
-    var thirdRepurchaserDividendsTokenBalance = await redemptionToken.dividends(repurchaser);
+    var thirdPurchaserDividendsTokenBalance = await redemptionToken.dividends(
+      purchaser
+    );
+    var thirdRepurchaserDividendsTokenBalance = await redemptionToken.dividends(
+      repurchaser
+    );
     var thirdContractTokenBalance = await testToken.balanceOf(
       redemptionToken.address
     );
@@ -802,8 +810,11 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
     var fourthRepurchaserTokenBalance = await testToken.balanceOf(repurchaser);
     var fourthPurchaserTokenBalance = await testToken.balanceOf(purchaser);
     var fourthTeamTokenBalance = await testToken.balanceOf(team);
-    var fourthPurchaserDividendsTokenBalance = await redemptionToken.dividends(purchaser);
-    var fourthRepurchaserDividendsTokenBalance = await redemptionToken.dividends(repurchaser);
+    var fourthPurchaserDividendsTokenBalance = await redemptionToken.dividends(
+      purchaser
+    );
+    var fourthRepurchaserDividendsTokenBalance =
+      await redemptionToken.dividends(repurchaser);
     var fourthContractTokenBalance = await testToken.balanceOf(
       redemptionToken.address
     );
@@ -817,51 +828,173 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
     var fifthRepurchaserTokenBalance = await testToken.balanceOf(repurchaser);
     var fifthPurchaserTokenBalance = await testToken.balanceOf(purchaser);
     var fifthTeamTokenBalance = await testToken.balanceOf(team);
-    var fifthPurchaserDividendsTokenBalance = await redemptionToken.dividends(purchaser);
-    var fifthRepurchaserDividendsTokenBalance = await redemptionToken.dividends(repurchaser);
+    var fifthPurchaserDividendsTokenBalance = await redemptionToken.dividends(
+      purchaser
+    );
+    var fifthRepurchaserDividendsTokenBalance = await redemptionToken.dividends(
+      repurchaser
+    );
     var fifthContractTokenBalance = await testToken.balanceOf(
       redemptionToken.address
     );
 
-
-    console.log("PURCHASER", firstPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString())
-    console.log("PURCHASER DIVIDENDS", firstPurchaserDividendsTokenBalance.sub(firstPurchaserDividendsTokenBalance).toString())
-    console.log("REPURCHASER", firstRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString())
-    console.log("REPURCHASER DIVIDENDS", firstRepurchaserDividendsTokenBalance.sub(firstRepurchaserDividendsTokenBalance).toString())
-    console.log("TEAM", firstTeamTokenBalance.sub(firstTeamTokenBalance).toString())
-    console.log("CONTRACT", firstContractTokenBalance.sub(firstContractTokenBalance).toString())
-    console.log()
-    console.log("PURCHASER", secondPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString())
-    console.log("PURCHASER DIVIDENDS", secondPurchaserDividendsTokenBalance.sub(firstPurchaserDividendsTokenBalance).toString())
-    console.log("REPURCHASER", secondRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString())
-    console.log("REPURCHASER DIVIDENDS", secondRepurchaserDividendsTokenBalance.sub(firstRepurchaserDividendsTokenBalance).toString())
-    console.log("TEAM", secondTeamTokenBalance.sub(firstTeamTokenBalance).toString())
-    console.log("CONTRACT", secondContractTokenBalance.sub(firstContractTokenBalance).toString())
-    console.log()
-    console.log("PURCHASER", thirdPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString())
-    console.log("PURCHASER DIVIDENDS", thirdPurchaserDividendsTokenBalance.sub(firstPurchaserDividendsTokenBalance).toString())
-    console.log("REPURCHASER", thirdRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString())
-    console.log("REPURCHASER DIVIDENDS", thirdRepurchaserDividendsTokenBalance.sub(firstRepurchaserDividendsTokenBalance).toString())
-    console.log("TEAM", thirdTeamTokenBalance.sub(firstTeamTokenBalance).toString())
-    console.log("CONTRACT", thirdContractTokenBalance.sub(firstContractTokenBalance).toString())
-    console.log()
-    console.log("PURCHASER", fourthPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString())
-    console.log("PURCHASER DIVIDENDS", fourthPurchaserDividendsTokenBalance.sub(firstPurchaserDividendsTokenBalance).toString())
-    console.log("REPURCHASER", fourthRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString())
-    console.log("REPURCHASER DIVIDENDS", fourthRepurchaserDividendsTokenBalance.sub(firstRepurchaserDividendsTokenBalance).toString())
-    console.log("TEAM", fourthTeamTokenBalance.sub(firstTeamTokenBalance).toString())
-    console.log("CONTRACT", fourthContractTokenBalance.sub(firstContractTokenBalance).toString())
-    console.log()
-    console.log("PURCHASER", fifthPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString())
-    console.log("PURCHASER DIVIDENDS", fifthPurchaserDividendsTokenBalance.sub(firstPurchaserDividendsTokenBalance).toString())
-    console.log("REPURCHASER", fifthRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString())
-    console.log("REPURCHASER DIVIDENDS", fifthRepurchaserDividendsTokenBalance.sub(firstRepurchaserDividendsTokenBalance).toString())
-    console.log("TEAM", fifthTeamTokenBalance.sub(firstTeamTokenBalance).toString())
-    console.log("CONTRACT", fifthContractTokenBalance.sub(firstContractTokenBalance).toString())
-    console.log()
-    console.log("TOTAL DIVIDENDS", (await redemptionToken.totalDividends()).toString())
-    console.log("PURCHASER CLAIMED DIVIDENDS", (await redemptionToken.claimedDividends(purchaser)).toString())
-    console.log("REPURCHASER CLAIMED DIVIDENDS", (await redemptionToken.claimedDividends(repurchaser)).toString())
+    console.log(
+      "PURCHASER",
+      firstPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString()
+    );
+    console.log(
+      "PURCHASER DIVIDENDS",
+      firstPurchaserDividendsTokenBalance
+        .sub(firstPurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "REPURCHASER",
+      firstRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString()
+    );
+    console.log(
+      "REPURCHASER DIVIDENDS",
+      firstRepurchaserDividendsTokenBalance
+        .sub(firstRepurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "TEAM",
+      firstTeamTokenBalance.sub(firstTeamTokenBalance).toString()
+    );
+    console.log(
+      "CONTRACT",
+      firstContractTokenBalance.sub(firstContractTokenBalance).toString()
+    );
+    console.log();
+    console.log(
+      "PURCHASER",
+      secondPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString()
+    );
+    console.log(
+      "PURCHASER DIVIDENDS",
+      secondPurchaserDividendsTokenBalance
+        .sub(firstPurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "REPURCHASER",
+      secondRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString()
+    );
+    console.log(
+      "REPURCHASER DIVIDENDS",
+      secondRepurchaserDividendsTokenBalance
+        .sub(firstRepurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "TEAM",
+      secondTeamTokenBalance.sub(firstTeamTokenBalance).toString()
+    );
+    console.log(
+      "CONTRACT",
+      secondContractTokenBalance.sub(firstContractTokenBalance).toString()
+    );
+    console.log();
+    console.log(
+      "PURCHASER",
+      thirdPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString()
+    );
+    console.log(
+      "PURCHASER DIVIDENDS",
+      thirdPurchaserDividendsTokenBalance
+        .sub(firstPurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "REPURCHASER",
+      thirdRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString()
+    );
+    console.log(
+      "REPURCHASER DIVIDENDS",
+      thirdRepurchaserDividendsTokenBalance
+        .sub(firstRepurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "TEAM",
+      thirdTeamTokenBalance.sub(firstTeamTokenBalance).toString()
+    );
+    console.log(
+      "CONTRACT",
+      thirdContractTokenBalance.sub(firstContractTokenBalance).toString()
+    );
+    console.log();
+    console.log(
+      "PURCHASER",
+      fourthPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString()
+    );
+    console.log(
+      "PURCHASER DIVIDENDS",
+      fourthPurchaserDividendsTokenBalance
+        .sub(firstPurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "REPURCHASER",
+      fourthRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString()
+    );
+    console.log(
+      "REPURCHASER DIVIDENDS",
+      fourthRepurchaserDividendsTokenBalance
+        .sub(firstRepurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "TEAM",
+      fourthTeamTokenBalance.sub(firstTeamTokenBalance).toString()
+    );
+    console.log(
+      "CONTRACT",
+      fourthContractTokenBalance.sub(firstContractTokenBalance).toString()
+    );
+    console.log();
+    console.log(
+      "PURCHASER",
+      fifthPurchaserTokenBalance.sub(firstPurchaserTokenBalance).toString()
+    );
+    console.log(
+      "PURCHASER DIVIDENDS",
+      fifthPurchaserDividendsTokenBalance
+        .sub(firstPurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "REPURCHASER",
+      fifthRepurchaserTokenBalance.sub(firstRepurchaserTokenBalance).toString()
+    );
+    console.log(
+      "REPURCHASER DIVIDENDS",
+      fifthRepurchaserDividendsTokenBalance
+        .sub(firstRepurchaserDividendsTokenBalance)
+        .toString()
+    );
+    console.log(
+      "TEAM",
+      fifthTeamTokenBalance.sub(firstTeamTokenBalance).toString()
+    );
+    console.log(
+      "CONTRACT",
+      fifthContractTokenBalance.sub(firstContractTokenBalance).toString()
+    );
+    console.log();
+    console.log(
+      "TOTAL DIVIDENDS",
+      (await redemptionToken.totalDividends()).toString()
+    );
+    console.log(
+      "PURCHASER CLAIMED DIVIDENDS",
+      (await redemptionToken.claimedDividends(purchaser)).toString()
+    );
+    console.log(
+      "REPURCHASER CLAIMED DIVIDENDS",
+      (await redemptionToken.claimedDividends(repurchaser)).toString()
+    );
 
     // bounceTx4.logs.filter(log => log.event == 'Here').forEach(log => {
     //   console.log("a", log.args.a.toString())
@@ -879,10 +1012,16 @@ contract("HolyWaterMafiaRedemptionToken", function (accounts) {
     //   (await redemptionToken.bouncesAtPrice(secondBouncePrice)).toString()
     // ).to.equal("1");
 
-    console.log(await redemptionToken.uri("1501"))
-})
+    console.log(await redemptionToken.uri("1501"));
+  });
 
+  it("Can bounce purely liquid token", async function () {
 
+    console.log(await redemptionToken.uri("1501"));
+    await redemptionToken.setURI("https://xyz.xyz/urmom/", {from: dons})
+    console.log(await redemptionToken.uri("1501"));
+
+  });
 
   // it("Can bounce purely liquid token", async function () {
   //   await redemptionToken.mint(dons, "1501", 1, "0x", {
