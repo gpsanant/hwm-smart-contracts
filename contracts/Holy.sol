@@ -23,6 +23,6 @@ interface Holy {
         uint256 numChildren;
         uint104 shares;
         uint256 matingWith;
-        uint256[] devilLineage;
+        uint256[] devilAncestors;
     }
 }

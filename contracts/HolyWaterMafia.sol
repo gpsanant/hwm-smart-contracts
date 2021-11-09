@@ -49,7 +49,6 @@ contract HolyWaterMafia is
     mapping(address => bool) public CAN_SET_GENOME;
     address public DONS;
     address public MULTISIG;
-    address public TREASURY;
     uint256 public POINT_MULTIPLIER = 10e40;
     IERC20 public BREEDING_TOKEN;
     HWMRedemptionToken public redemptionToken;
@@ -65,6 +64,7 @@ contract HolyWaterMafia is
     mapping(address => bytes32[]) public devilMintRequestIds;
     mapping(address => bytes32[]) public angelMintRequestIds;
     mapping(bytes32 => bytes32) public matingHashToRequestId;
+    mapping(bytes32 => uint256) public matingHashToAncestorDividend;
 
     bytes32 internal keyHash;
     uint256 internal fee;
@@ -129,10 +129,17 @@ contract HolyWaterMafia is
         requestIdToRandomness[requestId] = randomness;
     }
 
-    function mintTokens(address owner, uint256[] memory ids) external nonReentrant {
-        require(owner == msg.sender || redemptionToken.isApprovedForAll(owner, msg.sender), "Only the owner and approved can burn the redemption tokens");
+    function mintTokens(address owner, uint256[] memory ids)
+        external
+        nonReentrant
+    {
         require(
-            LINK.balanceOf(address(this)) >= ids.length*fee,
+            owner == msg.sender ||
+                redemptionToken.isApprovedForAll(owner, msg.sender),
+            "Only the owner and approved can burn the redemption tokens"
+        );
+        require(
+            LINK.balanceOf(address(this)) >= ids.length * fee,
             "Not enough LINK - fill contract with faucet"
         );
         uint256[] memory amounts = new uint256[](ids.length);
@@ -140,7 +147,7 @@ contract HolyWaterMafia is
             bytes32 requestId = requestRandomness(keyHash, fee);
             // if angel, add request id to angelMintRequestIds else add to devilMintRequestIds
             bool isAngel = assginer.isAngel(ids[i]);
-            if(isAngel){
+            if (isAngel) {
                 angelMintRequestIds[msg.sender].push(requestId);
             } else {
                 devilMintRequestIds[msg.sender].push(requestId);
@@ -152,7 +159,10 @@ contract HolyWaterMafia is
     }
 
     function claimTokens(address owner) external nonReentrant {
-        require(owner == msg.sender || isApprovedForAll(owner, msg.sender), "Only the owner and approved can claim tokens");
+        require(
+            owner == msg.sender || isApprovedForAll(owner, msg.sender),
+            "Only the owner and approved can claim tokens"
+        );
         // mint devils
         for (uint256 i = 0; i < devilMintRequestIds[owner].length; i++) {
             // get randomness
@@ -192,8 +202,7 @@ contract HolyWaterMafia is
     ) external {
         require(
             balanceOf(owner, devilId) == 1 &&
-                    (msg.sender == owner ||
-                        isApprovedForAll(owner, msg.sender)),
+                (msg.sender == owner || isApprovedForAll(owner, msg.sender)),
             "User is not authorized to modify angel"
         );
         require(
@@ -218,22 +227,24 @@ contract HolyWaterMafia is
             "Devil id is invalid"
         );
         require(
-                balanceOf(owner, devilId) == 1 &&
-                    (msg.sender == owner ||
-                        isApprovedForAll(owner, msg.sender)),
-                "User is not authorized to breed devil"
-            );
+            balanceOf(owner, devilId) == 1 &&
+                (msg.sender == owner || isApprovedForAll(owner, msg.sender)),
+            "User is not authorized to breed devil"
+        );
         Devil storage devil = devils[devilId];
         Angel storage angel = angels[angelId];
+        // send dons 1/3 of breeding fee
         BREEDING_TOKEN.transferFrom(owner, DONS, BREEDING_FEE / 3);
-        uint256 feeAfterDons =  BREEDING_FEE * 2 / 3;
-        BREEDING_TOKEN.transferFrom(
-                owner,
-                address(feeSplitter),
-                BREEDING_FEE * 2 / 3
-            );
-        feeSplitter.splitBreedingFee(feeAfterDons, devilId, angelId);
+        // send fee splitter 2/3 of breeding fee
+        uint256 feeAfterDons = BREEDING_FEE - BREEDING_FEE / 3;
+        BREEDING_TOKEN.transferFrom(owner, address(feeSplitter), feeAfterDons);
+        uint256 ancestorDividend = feeSplitter.splitBreedingFee(
+            feeAfterDons,
+            devilId,
+            angelId
+        );
         bytes32 matingHash = keccak256(abi.encodePacked(devilId, angelId));
+        matingHashToAncestorDividend[matingHash] = ancestorDividend;
         require(
             angel.approvedDevilIdToBreed == devilId,
             "Devil is not approved to breed with angel"
@@ -255,10 +266,9 @@ contract HolyWaterMafia is
             block.timestamp > angel.breedingCooldown,
             "You must wait until the cooldown time is reached to breed the angel"
         );
-        require(devil.matingWith == 0, "You cannot mate a pregnant angel");
+        require(devil.matingWith == 0, "You cannot mate a pregnant devil");
         alreadyMated[matingHash] = true;
         bytes32 requestId = requestRandomness(keyHash, fee);
-        matingHashToRequestId[matingHash] = requestId;
         uint256 newAngelCooldown;
         if (angel.numChildren > 11) {
             newAngelCooldown = 1209600;
@@ -278,6 +288,11 @@ contract HolyWaterMafia is
     }
 
     function giveBirth(address owner, uint256 devilId) external {
+        require(
+            balanceOf(owner, devilId) == 1 &&
+                (msg.sender == owner || isApprovedForAll(owner, msg.sender)),
+            "User is not authorized to breed devil"
+        );
         Devil storage devil = devils[devilId];
         uint256 angelId = devil.matingWith;
         require(angelId != 0, "You cannot mate a pregnant angel");
@@ -287,9 +302,11 @@ contract HolyWaterMafia is
             block.timestamp > devil.breedingCooldown,
             "You must wait until the cooldown time is reached to give birth"
         );
+        bytes32 matingHash = keccak256(abi.encodePacked(devilId, angelId));
         uint256 randomness = requestIdToRandomness[
-            matingHashToRequestId[keccak256(abi.encodePacked(devilId, angelId))]
+            matingHashToRequestId[matingHash]
         ];
+
         require(randomness != uint256(0), "Randomness must be set");
         (
             bool isAngel,
@@ -302,8 +319,16 @@ contract HolyWaterMafia is
         devils[devilId] = newDevilParent;
         if (isAngel) {
             _mintAngel(owner, newGenome, generation, angelId, devilId);
+            feeSplitter.setTotalAncestorDividends(
+                angelTokenId,
+                matingHashToAncestorDividend[matingHash]
+            );
         } else {
             _mintDevil(owner, newGenome, generation, angelId, devilId);
+            feeSplitter.setTotalAncestorDividends(
+                devilTokenId,
+                matingHashToAncestorDividend[matingHash]
+            );
         }
     }
 
@@ -317,9 +342,9 @@ contract HolyWaterMafia is
         devilTokenId++;
         uint104 shares = uint104(2**(66 - generation));
         totalShares += shares;
-        uint256[] storage devilLineage = devils[devilParentId].devilLineage;
-        if(devilParentId != 0){
-            devilLineage.push(devilParentId);
+        uint256[] storage devilAncestors = devils[devilParentId].devilAncestors;
+        if (devilParentId != 0) {
+            devilAncestors.push(devilParentId);
         }
         devils[devilTokenId] = Devil(
             genome,
@@ -330,7 +355,7 @@ contract HolyWaterMafia is
             0,
             shares,
             0,
-            devilLineage
+            devilAncestors
         );
         _mint(owner, devilTokenId, 1, "");
         emit DevilBirth(
@@ -375,6 +400,18 @@ contract HolyWaterMafia is
 
     function getShares(uint256 devilId) public view returns (uint256) {
         return devils[devilId].shares;
+    }
+
+    function getAncestor(uint256 devilId, uint256 ancestorIndex)
+        public
+        view
+        returns (uint256)
+    {
+        return devils[devilId].devilAncestors[ancestorIndex];
+    }
+
+    function getGeneration(uint256 devilId) public view returns (uint256) {
+        return devils[devilId].generation;
     }
 
     function getDevil(uint256 devilId) public view returns (Devil memory) {

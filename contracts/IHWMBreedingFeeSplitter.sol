@@ -7,7 +7,9 @@ interface IHWMBreedingFeeSplitter {
         uint256 fee,
         uint256 devilId,
         uint256 angelId
-    ) external;
+    ) external returns (uint256);
 
     function withdrawDividends(address owner, uint256[] memory ids) external;
+
+    function setTotalAncestorDividends(uint256 id, uint256 ancestorDividends) external;
 }
