@@ -20,7 +20,10 @@ contract HWMBreedingFeeSplitter {
     uint256 public treasuryDividends;
     // address that treasury share should go to
     address public treasury;
-    // how many dividends to be paid to the ancestors of given devil
+    // angelId => child index => amount of dividends for ancestors
+    mapping(uint256 => mapping(uint256 => uint256))
+        public totalAncestorDividendsByAngelIdAndChildIndex;
+    // child token id => amount of dividends for ancestors
     mapping(uint256 => uint256) public totalAncestorDividends;
     // Child token id => ancestor token id => whether they have claimed or not
     mapping(uint256 => mapping(uint256 => bool))
@@ -61,19 +64,28 @@ contract HWMBreedingFeeSplitter {
 
     // ancestor dividend must be set at birth because breeding fee and ancestor share
     // may change so ancestor dividend may be different for different offspring
-    function setTotalAncestorDividends(uint256 id, uint256 ancestorDividends) external {
+    function setChildId(
+        uint256 id,
+        uint256 angelParentId,
+        uint256 childIndex,
+        bool isDevil
+    ) external {
         require(msg.sender == address(hwm), "Only HWM can send fees");
-        totalAncestorDividends[id] = ancestorDividends;
-        // set lat claimed dividend to current dividends
-        lastDividendPoints[id] = totalDividendPoints;
+        totalAncestorDividends[id] = totalAncestorDividendsByAngelIdAndChildIndex[angelParentId][childIndex];
+        if (isDevil) {
+            // set last of born offspring claimed dividend to current dividends
+            lastDividendPoints[id] = totalDividendPoints;
+        }
     }
 
-    function splitBreedingFee(
-        uint256 fee,
-        uint256 devilId,
-        uint256 angelId
-    ) external returns (uint256) {
-        require(msg.sender == address(hwm), "Only HWM can send fees");
+    function splitBreedingFee(uint256 fee, uint256 angelId)
+        external
+        returns (uint256)
+    {
+        require(
+            msg.sender == address(hwm.breedingRights()),
+            "Only HWM breeding rights token can send fees"
+        );
         IERC20 breedingToken = hwm.BREEDING_TOKEN();
         // calculate how much of fee goes to hell (all devils) and the new being's ancestors
         uint256 hellsShareOfFee = (fee * hellsShare) / 10000;
@@ -94,7 +106,9 @@ contract HWMBreedingFeeSplitter {
             (A_BIG_NUMBER * fee * hellsShare) /
             10000 /
             hwm.totalShares();
-        return ancestorsShareOfFee;
+        totalAncestorDividendsByAngelIdAndChildIndex[angelId][
+            hwm.getAngelNumChildren(angelId)
+        ] += ancestorsShareOfFee;
     }
 
     function dividends(uint256[] memory ids) external view returns (uint256) {
@@ -139,7 +153,7 @@ contract HWMBreedingFeeSplitter {
     // withdraw dividends that were refelected to offsprings lineage
     // ids is a list of ids of devils to withdraw ancestor dividends for
     //
-    // allAncestorDividends is a list for each devil in *ids* stating which index 
+    // allAncestorDividends is a list for each devil in *ids* stating which index
     // the devil ancestor is within the offsprings "devilAncestors" property
     //
     // allDescendants is a list of offspring ids for each devil in ids
