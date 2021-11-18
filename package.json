@@ -27,6 +27,7 @@
     "@chainlink/contracts": "^0.2.2",
     "@nomiclabs/hardhat-etherscan": "^2.1.6",
     "@openzeppelin/contracts": "^4.3.2",
-    "dotenv": "^10.0.0"
+    "dotenv": "^10.0.0",
+    "js-sha256": "^0.9.0"
   }
 }
