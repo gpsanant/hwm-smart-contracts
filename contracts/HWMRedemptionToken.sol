@@ -11,7 +11,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
     address private team;
     uint256 public constant initialPrice = 1000000;
     uint256 public constant A_BIG_NUMBER = 10e50;
-    uint256 public constant numUnbouncableTokens = 1500;
+    uint256 public constant numUnbouncableTokens = 533;
     uint256 public constant numUnbouncableAngels = 433;
     uint256 public constant numUnbouncableDevils = 100;
     IERC20 public immutable saleToken;
@@ -45,9 +45,11 @@ contract HWMRedemptionToken is Context, ERC1155 {
     bool public bouncing = false;
     mapping(address => uint256) public claimedDividends;
     uint256 public totalDividends;
+    uint256 public totalUnclaimedDividends;
     uint256 public totalNumBounces;
 
-    event Bounce(uint256 tokenId, address from, address to);
+    event Bounce(uint256 tokenId, address from, address to, uint256 dividends);
+    event DividendsClaimed(address owner, uint256 dividends);
     event Mint(address to, uint256[] ids);
 
     /**
@@ -66,30 +68,31 @@ contract HWMRedemptionToken is Context, ERC1155 {
         dons = _msgSender();
         team = _team;
     }
-    
+
     modifier onlyDons() {
-        require(
-            msg.sender == dons,
-            "This function is restricted to the dons"
-        );
+        require(msg.sender == dons, "This function is restricted to the dons");
         _;
     }
 
-    function uint2str(uint _i) internal pure returns (string memory _uintAsString) {
+    function uint2str(uint256 _i)
+        internal
+        pure
+        returns (string memory _uintAsString)
+    {
         if (_i == 0) {
             return "0";
         }
-        uint j = _i;
-        uint len;
+        uint256 j = _i;
+        uint256 len;
         while (j != 0) {
             len++;
             j /= 10;
         }
         bytes memory bstr = new bytes(len);
-        uint k = len;
+        uint256 k = len;
         while (_i != 0) {
-            k = k-1;
-            uint8 temp = (48 + uint8(_i - _i / 10 * 10));
+            k = k - 1;
+            uint8 temp = (48 + uint8(_i - (_i / 10) * 10));
             bytes1 b1 = bytes1(temp);
             bstr[k] = b1;
             _i /= 10;
@@ -97,7 +100,12 @@ contract HWMRedemptionToken is Context, ERC1155 {
         return string(bstr);
     }
 
-    function uri(uint256 _tokenId) public view override returns (string memory) {
+    function uri(uint256 _tokenId)
+        public
+        view
+        override
+        returns (string memory)
+    {
         return string(abi.encodePacked(_uri, uint2str(_tokenId)));
     }
 
@@ -189,7 +197,6 @@ contract HWMRedemptionToken is Context, ERC1155 {
                 if (id > numUnbouncableTokens) {
                     require(bouncing, "Can only bounce gaseous tokens");
                     totalNumBounces++;
-                    emit Bounce(id, from, to);
                     lastBounceTime[id] = block.timestamp;
                 }
             }
@@ -213,6 +220,8 @@ contract HWMRedemptionToken is Context, ERC1155 {
                 saleToken.transfer(owner, ownerPastDividendsOwed);
                 claimedDividends[owner] += ownerPastDividendsOwed;
                 pastHolderLastDividends[id][owner] = pastHolderDividends[id];
+                emit DividendsClaimed(owner, ownerPastDividendsOwed);
+                totalUnclaimedDividends -= ownerPastDividendsOwed;
             }
             // Give owner the price they paid plus half of the 30% premium
             // Give the dons 50% of the premium
@@ -223,8 +232,8 @@ contract HWMRedemptionToken is Context, ERC1155 {
             } else if (numBounces[id] > 15) {
                 growthRate = 13;
             }
-            uint256 price = (lastBouncePrice[id] * growthRate) / 10;
             uint256 lastPrice = lastBouncePrice[id];
+            uint256 price = (lastPrice * growthRate) / 10;
             lastBouncePrice[id] = price;
             uint256 tenthOfIncrease = (price - lastPrice) / 10;
             saleToken.transferFrom(
@@ -250,6 +259,8 @@ contract HWMRedemptionToken is Context, ERC1155 {
             }
             tokensAtPrice[price]++;
             tokensAtPrice[lastPrice]--;
+            emit Bounce(id, owner, newOwner, 2 * tenthOfIncrease);
+            totalUnclaimedDividends += 2 * tenthOfIncrease;
         } else {
             // If first sale, give the owner the initial price
 
@@ -260,6 +271,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
             }
             tokensAtPrice[initialPrice]++;
             timeOfFirstBounce[id] = block.timestamp;
+            emit Bounce(id, owner, newOwner, 0);
         }
 
         // Add current token to tokensHeld of new owner if they havent held it before
@@ -272,6 +284,8 @@ contract HWMRedemptionToken is Context, ERC1155 {
                     pastHolderLastDividends[id][newOwner])) / A_BIG_NUMBER;
             saleToken.transfer(newOwner, newOwnerPastDividendsOwed);
             claimedDividends[newOwner] += newOwnerPastDividendsOwed;
+            emit DividendsClaimed(newOwner, newOwnerPastDividendsOwed);
+            totalUnclaimedDividends -= newOwnerPastDividendsOwed;
         }
 
         numBounces[id]++;
@@ -281,8 +295,8 @@ contract HWMRedemptionToken is Context, ERC1155 {
         _safeTransferFrom(owner, newOwner, id, 1, "");
     }
 
-    function dividends(address owner, uint256[] memory ids)
-        public
+    function dividendsSpecific(address owner, uint256[] memory ids)
+        external
         view
         returns (uint256)
     {
@@ -298,7 +312,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
         return dividendsOwed;
     }
 
-    function dividends(address owner) public view returns (uint256) {
+    function dividends(address owner) external view returns (uint256) {
         uint256 dividendsOwed = 0;
         for (uint256 i = 0; i < tokensHeld[owner].length; i++) {
             uint256 id = tokensHeld[owner][i];
@@ -311,7 +325,9 @@ contract HWMRedemptionToken is Context, ERC1155 {
         return dividendsOwed;
     }
 
-    function withdrawDividends(address owner, uint256[] memory ids) external {
+    function withdrawDividendsSpecific(address owner, uint256[] memory ids)
+        external
+    {
         require(
             msg.sender == owner || isApprovedForAll(owner, msg.sender),
             "User is not authorized to withdraw for address"
@@ -326,8 +342,10 @@ contract HWMRedemptionToken is Context, ERC1155 {
                 A_BIG_NUMBER;
             pastHolderLastDividends[id][owner] = pastHolderDividends[id];
         }
-        saleToken.transfer(owner, dividendsOwed);
         claimedDividends[owner] += dividendsOwed;
+        saleToken.transfer(owner, dividendsOwed);
+        emit DividendsClaimed(owner, dividendsOwed);
+        totalUnclaimedDividends -= dividendsOwed;
     }
 
     function withdrawDividends(address owner) external {
@@ -345,16 +363,25 @@ contract HWMRedemptionToken is Context, ERC1155 {
                 A_BIG_NUMBER;
             pastHolderLastDividends[id][owner] = pastHolderDividends[id];
         }
-        saleToken.transfer(owner, dividendsOwed);
         claimedDividends[owner] += dividendsOwed;
+        saleToken.transfer(owner, dividendsOwed);
+        emit DividendsClaimed(owner, dividendsOwed);
+        totalUnclaimedDividends -= dividendsOwed;
     }
 
-    function bouncePricePercentile(uint256 percentile) external view returns(uint256) {
-        require(percentile <= 100 && percentile >= 0, "Invalid percentile: 0 <= percentile <= 100 must be true");
-        uint256 numLeft = totalNumBounces * percentile / 100;
+    function bouncePricePercentile(uint256 percentile)
+        external
+        view
+        returns (uint256)
+    {
+        require(
+            percentile <= 100 && percentile >= 0,
+            "Invalid percentile: 0 <= percentile <= 100 must be true"
+        );
+        uint256 numLeft = (totalNumBounces * percentile) / 100;
         uint8 index = 0;
         uint256 bouncePrice;
-        while(numLeft > 0) {
+        while (numLeft > 0) {
             bouncePrice = bouncePrices[index];
             numLeft -= tokensAtPrice[bouncePrice];
             index++;
