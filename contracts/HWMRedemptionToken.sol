@@ -383,6 +383,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
         uint256 bouncePrice;
         while (numLeft > 0) {
             bouncePrice = bouncePrices[index];
+            if(numLeft < tokensAtPrice[bouncePrice]) return bouncePrice;
             numLeft -= tokensAtPrice[bouncePrice];
             index++;
         }

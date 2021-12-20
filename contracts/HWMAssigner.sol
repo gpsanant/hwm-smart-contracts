@@ -8,8 +8,8 @@ import "./HWMRedemptionToken.sol";
 contract HWMAssigner is VRFConsumerBase {
     mapping(uint256 => uint8) public species;
     mapping(bytes32 => uint256) public requestIdToTokenId;
-    uint256 internal modulus = 3;
-    uint256 internal threshold = 1;
+    uint256 internal modulus = 1000;
+    uint256 internal threshold = 306;
     bytes32 internal keyHash;
     uint256 internal fee;
     event AssignRequest(bytes32 requestId, uint256 id);
@@ -52,7 +52,7 @@ contract HWMAssigner is VRFConsumerBase {
         internal
         override
     {
-        if((randomness % modulus) > threshold){
+        if((randomness % modulus) < threshold){
             species[requestIdToTokenId[requestId]] = 2;
         } else {
             species[requestIdToTokenId[requestId]] = 1;
