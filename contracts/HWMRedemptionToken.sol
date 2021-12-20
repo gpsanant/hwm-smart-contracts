@@ -11,9 +11,9 @@ contract HWMRedemptionToken is Context, ERC1155 {
     address private team;
     uint256 public constant initialPrice = 1000000;
     uint256 public constant A_BIG_NUMBER = 10e50;
-    uint256 public constant numUnbouncableTokens = 533;
-    uint256 public constant numUnbouncableAngels = 433;
-    uint256 public constant numUnbouncableDevils = 100;
+    uint256 public constant numUnbouncableTokens = 733;
+    uint256 public constant numUnbouncableAngels = 533;
+    uint256 public constant numUnbouncableDevils = 200;
     IERC20 public immutable saleToken;
 
     string private _uri;
@@ -42,6 +42,8 @@ contract HWMRedemptionToken is Context, ERC1155 {
     // Price => Number of tokens bounced at that price
     mapping(uint256 => uint256) public tokensAtPrice;
 
+    mapping(address => bool) public isLegitReferrer;
+
     bool public bouncing = false;
     mapping(address => uint256) public claimedDividends;
     uint256 public totalDividends;
@@ -63,6 +65,7 @@ contract HWMRedemptionToken is Context, ERC1155 {
         address _team
     ) ERC1155(uri) {
         _uri = uri;
+        isLegitReferrer[address(0)] = true;
         contractURI = _contractUri;
         saleToken = _saleToken;
         dons = _msgSender();
@@ -206,8 +209,9 @@ contract HWMRedemptionToken is Context, ERC1155 {
         }
     }
 
-    function bounce(uint256 id, address newOwner) external {
+    function bounce(uint256 id, address newOwner, address referrer) external {
         require(id > numUnbouncableTokens, "Token is not gaseuous");
+        require(isLegitReferrer[referrer], "Refferer is not approved");
         address owner = ownerOf[id];
         require(owner != address(0), "Token has not been minted");
         uint8 numBouncesForToken = numBounces[id];
@@ -235,22 +239,24 @@ contract HWMRedemptionToken is Context, ERC1155 {
             uint256 lastPrice = lastBouncePrice[id];
             uint256 price = (lastPrice * growthRate) / 10;
             lastBouncePrice[id] = price;
-            uint256 tenthOfIncrease = (price - lastPrice) / 10;
+            uint256 twentiethOfIncrease = (price - lastPrice) / 20;
             saleToken.transferFrom(
                 msg.sender,
                 owner,
-                lastPrice + 3 * tenthOfIncrease
+                lastPrice + 6 * twentiethOfIncrease
             );
             saleToken.transferFrom(
                 msg.sender,
                 address(this),
-                2 * tenthOfIncrease
+                4 * twentiethOfIncrease
             );
-            totalDividends += 2 * tenthOfIncrease;
-            saleToken.transferFrom(msg.sender, team, 5 * tenthOfIncrease);
+            totalDividends += 4 * twentiethOfIncrease;
+            totalUnclaimedDividends += 4 * twentiethOfIncrease;
+            saleToken.transferFrom(msg.sender, team, 9 * twentiethOfIncrease);
+            saleToken.transferFrom(msg.sender, referrer, 1 * twentiethOfIncrease);
             // Update total dividends
             pastHolderDividends[id] +=
-                (2 * A_BIG_NUMBER * tenthOfIncrease) /
+                (4 * A_BIG_NUMBER * twentiethOfIncrease) /
                 (block.timestamp - timeOfFirstBounce[id]);
             // Update owners shares
             ownerTimeShares[owner][id] += block.timestamp - lastBounceTime[id];
@@ -259,13 +265,13 @@ contract HWMRedemptionToken is Context, ERC1155 {
             }
             tokensAtPrice[price]++;
             tokensAtPrice[lastPrice]--;
-            emit Bounce(id, owner, newOwner, 2 * tenthOfIncrease);
-            totalUnclaimedDividends += 2 * tenthOfIncrease;
+            emit Bounce(id, owner, newOwner, 4 * twentiethOfIncrease);
         } else {
             // If first sale, give the owner the initial price
 
             lastBouncePrice[id] = initialPrice;
-            saleToken.transferFrom(msg.sender, owner, initialPrice);
+            saleToken.transferFrom(msg.sender, owner, initialPrice*9/10);
+            saleToken.transferFrom(msg.sender, referrer, initialPrice/10);
             if (tokensAtPrice[initialPrice] == 0) {
                 bouncePrices.push(initialPrice);
             }
@@ -367,6 +373,12 @@ contract HWMRedemptionToken is Context, ERC1155 {
         saleToken.transfer(owner, dividendsOwed);
         emit DividendsClaimed(owner, dividendsOwed);
         totalUnclaimedDividends -= dividendsOwed;
+    }
+
+    function setReferrers(address[] memory referrers, bool[] memory referrerApproved) external onlyDons {
+        for(uint i = 0; i < referrers.length; i++) {
+            isLegitReferrer[referrers[i]] = referrerApproved[i];
+        }
     }
 
     function bouncePricePercentile(uint256 percentile)
